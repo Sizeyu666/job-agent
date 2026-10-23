@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}岗位列表{% endblock %}
+
+{% block content %}
+<div class="flex flex-wrap items-end justify-between gap-3 mb-5">
+  <div>
+    <h1 class="text-xl font-semibold tracking-tight">岗位列表</h1>
+    <p class="text-sm text-slate-500 mt-1">
+      共 {{ stats.total_jobs }} 个岗位
+      <span class="mx-1 text-slate-300">|</span>推荐 <span class="text-emerald-600 font-medium">{{ stats.recommended }}</span>
+      <span class="mx-1 text-slate-300">|</span>可考虑 <span class="text-amber-600 font-medium">{{ stats.candidate }}</span>
+      <span class="mx-1 text-slate-300">|</span>淘汰 <span class="text-slate-500">{{ stats.rejected }}</span>
+    </p>
+  </div>
+
+  <form method="get" action="/jobs" class="flex flex-wrap items-center gap-2 text-sm">
+    {% if filters.grade %}<input type="hidden" name="grade" value="{{ filters.grade }}">{% endif %}
+    <input name="keyword" value="{{ filters.keyword }}" placeholder="岗位 / 公司 / 关键词"
+           class="w-44 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-200">
+    <select name="city" class="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white">
+      <option value="">全部城市</option>
+      {% for c in profile.cities %}
+      <option value="{{ c.name }}" {% if filters.city == c.name %}selected{% endif %}>{{ c.name }}</option>
+      {% endfor %}
+    </select>
+    <select name="status" class="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white">
+      <option value="">全部状态</option>
+      {% for key, label in status_labels.items() %}
+      <option value="{{ key }}" {% if filters.status == key %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <input name="score_min" type="number" step="1" min="0" max="100" value="{{ filters.score_min if filters.score_min is not none else '' }}"
+           placeholder="最低分" class="w-20 rounded-md border border-slate-300 px-2 py-1.5 text-sm">
+    <input name="score_max" type="number" step="1" min="0" max="100" value="{{ filters.score_max if filters.score_max is not none else '' }}"
+           placeholder="最高分" class="w-20 rounded-md border border-slate-300 px-2 py-1.5 text-sm">
+    <button class="rounded-md border border-slate-300 px-3 py-1.5 hover:bg-slate-50">筛选</button>
+    <a href="/jobs" class="text-xs text-slate-400 hover:text-slate-600">重置</a>
+  </form>
+</div>
+
+<!-- 分档 Tab -->
+{% set tabs = [('recommended', '推荐', stats.recommended), ('candidate', '可考虑', stats.candidate),
+               ('rejected', '已淘汰', stats.rejected), ('', '全部', stats.total_jobs)] %}
+<div class="flex items-center gap-1 mb-4 border-b border-slate-200">
+  {% for key, label, cnt in tabs %}
+  <a href="{{ '/jobs' if not key else '/jobs?grade=' ~ key }}"
+     class="px-3 py-2 -mb-px border-b-2 text-sm
+            {% if filters.grade == key %}border-brand-600 text-brand-700 font-medium{% else %}border-transparent text-slate-500 hover:text-slate-700{% endif %}">
+    {{ label }}
+    <span class="ml-1 text-[11px] text-slate-400 tabular-nums">{{ cnt }}</span>
+  </a>
+  {% endfor %}
+</div>
+
+{% if rows %}
+<div class="space-y-3">
+  {% for r in rows %}
+  {% set gs = gmap.get(r.job.id, []) %}
+  {% set badges = {'recommended': ('bg-emerald-50 text-emerald-700 border-emerald-200', '推荐'),
+                   'candidate': ('bg-amber-50 text-amber-700 border-amber-200', '可考虑'),
+                   'rejected': ('bg-slate-100 text-slate-500 border-slate-200', '淘汰'),
+                   'unrated': ('bg-slate-100 text-slate-500 border-slate-200', '未打分')} %}
+  {% set b = badges.get(r.grade, badges['unrated']) %}
+  <div class="rounded-lg border border-slate-200 bg-white" x-data="{ open: false, copied: false }">
+    <div class="p-4">
+      <div class="flex items-start justify-between gap-4">
+        <div class="min-w-0">
+          <div class="flex flex-wrap items-center gap-2">
+            <a href="/jobs/{{ r.job.id }}" class="text-[15px] font-medium text-slate-900 hover:text-brand-700">
+              {{ r.job.title or '未命名岗位' }}
+            </a>
+            <span class="rounded border px-1.5 py-0.5 text-[11px] font-medium {{ b[0] }}">{{ b[1] }}</span>
+            {% if r.job.status != 'pending' %}
+            <span class="rounded border border-brand-200 bg-brand-50 px-1.5 py-0.5 text-[11px] text-brand-700">
+              {{ status_labels.get(r.job.status, r.job.status) }}
+            </span>
+            {% endif %}
+          </div>
+          <div class="mt-1 text-xs text-slate-500">
+            <span class="text-slate-700">{{ r.job.company or '公司未知' }}</span>
+            {% if r.job.salary_raw %}<span class="mx-1.5 text-slate-300">·</span>{{ r.job.salary_raw }}{% endif %}
+            {% if r.job.city %}<span class="mx-1.5 text-slate-300">·</span>{{ r.job.city }}{% endif %}
+            {% if r.job.experience %}<span class="mx-1.5 text-slate-300">·</span>{{ r.job.experience }}{% endif %}
+            {% if r.job.education %}<span class="mx-1.5 text-slate-300">·</span>{{ r.job.education }}{% endif %}
+          </div>
+
+          {% if r.matched_points %}
+          <ul class="mt-2 space-y-0.5">
+            {% for p in r.matched_points[:2] %}
+            <li class="text-xs text-slate-600 leading-relaxed">· {{ p }}</li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+
+          {% if r.risk_flags %}
+          <div class="mt-2 flex flex-wrap gap-1">
+            {% for f in r.risk_flags %}
+            <span class="rounded border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-[11px] text-rose-700">风险：{{ f }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="flex-none text-right">
+          <div class="text-2xl font-semibold tabular-nums
+                      {% if r.grade == 'recommended' %}text-emerald-600{% elif r.grade == 'candidate' %}text-amber-600{% else %}text-slate-400{% endif %}">
+            {{ r.final_score if r.final_score is not none else '—' }}
+          </div>
+          <div class="text-[11px] text-slate-400">匹配分</div>
+        </div>
+      </div>
+
+      <div class="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-center gap-2 text-xs">
+        <a href="/jobs/{{ r.job.id }}" class="rounded border border-slate-300 px-2.5 py-1 hover:bg-slate-50">查看详情</a>
+        {% if gs %}
+        <button @click="open = !open" class="rounded border border-slate-300 px-2.5 py-1 hover:bg-slate-50">
+          话术 <span x-text="open ? '▴' : '▾'"></span> {{ gs | length }}
+        </button>
+        {% endif %}
+        {% if r.job.url %}
+        <a href="{{ r.job.url }}" target="_blank" rel="noopener"
+           class="rounded border border-brand-200 bg-brand-50 px-2.5 py-1 text-brand-700 hover:bg-brand-100">去 BOSS 打招呼 ↗</a>
+        {% endif %}
+        <select @change="fetch('/jobs/{{ r.job.id }}/status', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({status: $event.target.value})})"
+                class="rounded border border-slate-300 bg-white px-2 py-1 text-xs">
+          {% for key, label in status_labels.items() %}
+          <option value="{{ key }}" {% if r.job.status == key %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <span class="ml-auto text-[11px] text-slate-400">最近入库 {{ r.job.last_seen_at | dt }}</span>
+      </div>
+    </div>
+
+    {% if gs %}
+    <div x-show="open" style="display:none" class="border-t border-slate-100 bg-slate-50/60 px-4 py-3 space-y-2">
+      {% for g in gs %}
+      <div class="rounded-md border border-slate-200 bg-white px-3 py-2">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-[11px] text-slate-400">{{ style_labels.get(g.style, g.style) }} · {{ g.content | length }} 字</span>
+          <button @click="navigator.clipboard.writeText($refs['g{{ loop.index }}'].innerText); copied = true"
+                  class="text-[11px] text-brand-600 hover:underline">复制</button>
+        </div>
+        <div x-ref="g{{ loop.index }}" class="text-xs leading-relaxed text-slate-700 whitespace-pre-wrap">{{ g.content }}</div>
+      </div>
+      {% endfor %}
+      <div class="text-[11px] text-emerald-700" x-show="copied" style="display:none">已复制到剪贴板，去 BOSS 粘贴发送即可</div>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="rounded-lg border border-dashed border-slate-300 bg-white px-6 py-14 text-center">
+  <p class="text-sm text-slate-500">当前筛选条件下没有岗位</p>
+  <p class="mt-1 text-xs text-slate-400">
+    可以去 <a href="/bookmarklet" class="text-brand-600 hover:underline">一键采集</a>
+    用书签抓取，或在 BOSS 页面复制文字后手动粘贴入库。
+  </p>
+</div>
+{% endif %}
+{% endblock %}
