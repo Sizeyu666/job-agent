@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="h-full bg-slate-50">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}仪表盘{% endblock %} · JobAgent</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50:'#eff6ff', 100:'#dbeafe', 200:'#bfdbfe', 500:'#3b82f6', 600:'#2563eb', 700:'#1d4ed8' }
+          },
+          fontFamily: { sans: ['-apple-system','BlinkMacSystemFont','Segoe UI','Microsoft YaHei','PingFang SC','sans-serif'] }
+        }
+      }
+    }
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+  <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body class="min-h-full bg-slate-50 text-slate-800 antialiased">
+
+<header class="sticky top-0 z-30 bg-white border-b border-slate-200">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6">
+    <div class="flex h-14 items-center justify-between">
+      <div class="flex items-center gap-7">
+        <a href="/" class="flex items-center gap-2.5">
+          <span class="inline-flex h-7 w-7 items-center justify-center rounded-md bg-brand-600 text-white text-sm font-semibold">J</span>
+          <span class="text-[15px] font-semibold tracking-tight">JobAgent</span>
+          <span class="hidden sm:inline text-[11px] text-slate-400 border border-slate-200 rounded px-1.5 py-0.5">求职副驾驶</span>
+        </a>
+        <nav class="flex items-center gap-1 text-sm">
+          {% set nav_items = [('/', '仪表盘', 'dashboard'), ('/jobs', '岗位列表', 'jobs'), ('/bookmarklet', '一键采集', 'bookmarklet'), ('/resume', '简历管理', 'resume'), ('/settings', '设置', 'settings'), ('/runs', '运行日志', 'runs')] %}
+          {% for href, label, key in nav_items %}
+          <a href="{{ href }}"
+             class="px-3 py-1.5 rounded-md transition-colors
+                    {% if active == key %}bg-brand-50 text-brand-700 font-medium{% else %}text-slate-600 hover:bg-slate-100{% endif %}">
+            {{ label }}
+          </a>
+          {% endfor %}
+        </nav>
+      </div>
+      <div class="flex items-center gap-3 text-xs text-slate-400">
+        <span class="hidden sm:inline">本机运行</span>
+        <span class="inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-7xl mx-auto px-4 sm:px-6 py-7">
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="max-w-7xl mx-auto px-6 pb-8 pt-2 text-[11px] text-slate-400">
+  仅采集与浏览公开岗位信息，投递与打招呼均由你本人手动完成。
+</footer>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>
