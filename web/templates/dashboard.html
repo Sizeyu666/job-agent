@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}仪表盘{% endblock %}
+
+{% block content %}
+<div class="flex flex-wrap items-start justify-between gap-4 mb-6">
+  <div>
+    <h1 class="text-xl font-semibold tracking-tight">仪表盘</h1>
+    <p class="text-sm text-slate-500 mt-1">
+      目标岗位：
+      <span class="text-slate-700">{{ profile.target_keywords | join(' · ') }}</span>
+      <span class="mx-1 text-slate-300">|</span>
+      城市：{{ profile.cities | map(attribute='name') | join(' · ') }}
+    </p>
+  </div>
+  <div class="flex items-center gap-2" x-data="runButton()">
+    <button @click="run()" :disabled="running"
+            class="inline-flex items-center gap-2 rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white
+                   hover:bg-brand-700 disabled:opacity-60 disabled:cursor-not-allowed">
+      <svg x-show="!running" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M6.3 4.3a1 1 0 011.4 0l7 6a1 1 0 010 1.4l-7 6a1 1 0 01-1.4-1.4L12.6 11 6.3 5.7a1 1 0 010-1.4z"/></svg>
+      <svg x-show="running" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/></svg>
+      <span x-text="running ? '运行中…' : '立即运行一轮'"></span>
+    </button>
+  </div>
+</div>
+
+<!-- 关键指标 -->
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+  {% set cards = [
+    ('今日新岗位', stats.today_new, '今日首次入库的岗位数', 'text-slate-900'),
+    ('推荐', stats.recommended, '匹配分 ≥ ' ~ profile.score_threshold, 'text-emerald-600'),
+    ('可考虑', stats.candidate, '匹配分 50 - ' ~ (profile.score_threshold - 1), 'text-amber-600'),
+    ('已投递 / 约面', stats.applied, '你在网页上标记的状态', 'text-brand-600')
+  ] %}
+  {% for label, value, hint, color in cards %}
+  <div class="rounded-lg border border-slate-200 bg-white p-5 card-hover">
+    <div class="text-sm text-slate-500">{{ label }}</div>
+    <div class="mt-2 text-3xl font-semibold tabular-nums {{ color }}">{{ value }}</div>
+    <div class="mt-1 text-[11px] text-slate-400">{{ hint }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="grid lg:grid-cols-3 gap-4 mt-4">
+  <!-- 任务状态 -->
+  <div class="lg:col-span-2 rounded-lg border border-slate-200 bg-white">
+    <div class="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
+      <h2 class="text-sm font-semibold">任务状态</h2>
+      {% if run %}
+        {% set state_map = {'running': ('运行中', 'bg-brand-50 text-brand-700 border-brand-200'),
+                            'success': ('成功', 'bg-emerald-50 text-emerald-700 border-emerald-200'),
+                            'failed': ('失败', 'bg-rose-50 text-rose-700 border-rose-200'),
+                            'paused_captcha': ('验证码暂停', 'bg-amber-50 text-amber-700 border-amber-200')} %}
+        {% set st = state_map.get(run.state, (run.state, 'bg-slate-50 text-slate-600 border-slate-200')) %}
+        <span class="rounded border px-2 py-0.5 text-[11px] font-medium {{ st[1] }}">{{ st[0] }}</span>
+      {% else %}
+        <span class="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-500">尚无运行记录</span>
+      {% endif %}
+    </div>
+    <div class="px-5 py-4">
+      {% if run %}
+      <dl class="grid grid-cols-2 sm:grid-cols-4 gap-y-4 text-sm">
+        <div>
+          <dt class="text-xs text-slate-400">上次运行</dt>
+          <dd class="mt-0.5 text-slate-700">{{ run.started_at | dt('%m-%d %H:%M:%S') }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs text-slate-400">耗时</dt>
+          <dd class="mt-0.5 text-slate-700 tabular-nums">
+            {% if run.finished_at %}{{ ((run.finished_at - run.started_at).total_seconds() // 60) | int }} 分 {{ ((run.finished_at - run.started_at).total_seconds() % 60) | int }} 秒{% else %}进行中{% endif %}
+          </dd>
+        </div>
+        <div>
+          <dt class="text-xs text-slate-400">新抓取</dt>
+          <dd class="mt-0.5 text-slate-700 tabular-nums">{{ run.new_jobs }} 个</dd>
+        </div>
+        <div>
+          <dt class="text-xs text-slate-400">已打分</dt>
+          <dd class="mt-0.5 text-slate-700 tabular-nums">{{ run.evaluated }} 个</dd>
+        </div>
+      </dl>
+      {% if run.message %}
+      <div class="mt-4 rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-xs text-slate-600">{{ run.message }}</div>
+      {% endif %}
+      {% if run.captcha_shot %}
+      <div class="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        检测到验证码，任务已暂停。请人工完成验证后重新运行。
+        <a href="/runs" class="underline font-medium">查看截图</a>
+      </div>
+      {% endif %}
+      {% else %}
+      <p class="text-sm text-slate-500">还没有运行过。点击右上角「立即运行一轮」，系统会采集岗位并自动打分。</p>
+      {% endif %}
+
+      <div class="mt-5 pt-4 border-t border-slate-100 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-slate-500">
+        <span>下次定时：<span class="text-slate-700">{{ next_run_text or '—' }}</span></span>
+        <span>定时计划：{{ profile.schedule.cron | join(' / ') }}</span>
+        <span>当前状态：
+          {% if run and run.state == 'running' %}<span class="text-brand-600 font-medium">正在运行</span>
+          {% else %}<span class="text-slate-400">空闲</span>{% endif %}
+        </span>
+        <span class="ml-auto"><a href="/runs" class="text-brand-600 hover:underline">查看运行日志 →</a></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 分数分布 -->
+  <div class="rounded-lg border border-slate-200 bg-white">
+    <div class="px-5 py-3.5 border-b border-slate-100">
+      <h2 class="text-sm font-semibold">匹配分分布</h2>
+    </div>
+    <div class="px-5 py-4 space-y-3">
+      {% set total_scored = stats.buckets.values() | sum %}
+      {% set bucket_meta = [('90-100', 'bg-emerald-500'), ('75-89', 'bg-brand-500'), ('50-74', 'bg-amber-400'), ('0-49', 'bg-slate-300')] %}
+      {% for key, color in bucket_meta %}
+      {% set val = stats.buckets[key] %}
+      <div>
+        <div class="flex items-center justify-between text-xs mb-1">
+          <span class="text-slate-500">{{ key }} 分</span>
+          <span class="text-slate-700 tabular-nums font-medium">{{ val }}</span>
+        </div>
+        <div class="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
+          <div class="bar h-full rounded-full {{ color }}" style="width: {{ (val / total_scored * 100) if total_scored else 0 }}%"></div>
+        </div>
+      </div>
+      {% endfor %}
+      <div class="pt-2 text-[11px] text-slate-400">共 {{ total_scored }} 个岗位已完成打分</div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function runButton() {
+    return {
+      running: false,
+      async run() {
+        this.running = true;
+        try {
+          const resp = await fetch('/api/run', { method: 'POST' });
+          const data = await resp.json();
+          if (!data.ok) alert(data.message || '启动失败');
+          // 轮询直到本轮结束，再刷新页面展示最新结果
+          const timer = setInterval(async () => {
+            const st = await (await fetch('/api/run/status')).json();
+            if (!st.running) { clearInterval(timer); location.reload(); }
+          }, 3000);
+        } catch (e) {
+          alert('请求失败：' + e);
+          this.running = false;
+        }
+      }
+    }
+  }
+</script>
+{% endblock %}
