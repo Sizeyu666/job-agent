@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}运行日志{% endblock %}
+
+{% block content %}
+<div class="flex items-end justify-between mb-5">
+  <div>
+    <h1 class="text-xl font-semibold tracking-tight">运行日志</h1>
+    <p class="text-sm text-slate-500 mt-1">最近 100 轮任务的采集、打分、话术计数与失败原因。</p>
+  </div>
+  <button onclick="runNow(this)" class="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700">
+    立即运行一轮
+  </button>
+</div>
+
+<div id="flash" class="hidden mb-4 rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-600"></div>
+
+{% if runs %}
+<div class="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+  <table class="min-w-full text-xs">
+    <thead class="bg-slate-50 text-slate-500">
+      <tr>
+        <th class="px-4 py-2.5 text-left font-medium">开始时间</th>
+        <th class="px-3 py-2.5 text-left font-medium">状态</th>
+        <th class="px-3 py-2.5 text-right font-medium">新岗位</th>
+        <th class="px-3 py-2.5 text-right font-medium">打分</th>
+        <th class="px-3 py-2.5 text-right font-medium">推荐</th>
+        <th class="px-3 py-2.5 text-right font-medium">可考虑</th>
+        <th class="px-3 py-2.5 text-right font-medium">淘汰</th>
+        <th class="px-3 py-2.5 text-right font-medium">话术</th>
+        <th class="px-3 py-2.5 text-right font-medium">耗时</th>
+        <th class="px-4 py-2.5 text-left font-medium">说明</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-100">
+      {% set state_meta = {'success': ('bg-emerald-50 text-emerald-700 border-emerald-200', '成功'),
+                           'failed': ('bg-rose-50 text-rose-700 border-rose-200', '失败'),
+                           'paused_captcha': ('bg-amber-50 text-amber-700 border-amber-200', '验证码暂停'),
+                           'running': ('bg-brand-50 text-brand-700 border-brand-200', '运行中')} %}
+      {% for run in runs %}
+      {% set sm = state_meta.get(run.state, ('bg-slate-100 text-slate-600 border-slate-200', run.state)) %}
+      <tr class="hover:bg-slate-50/70 align-top">
+        <td class="px-4 py-2.5 whitespace-nowrap text-slate-600">{{ run.started_at | dt('%m-%d %H:%M:%S') }}</td>
+        <td class="px-3 py-2.5">
+          <span class="rounded border px-1.5 py-0.5 text-[11px] {{ sm[0] }}">{{ sm[1] }}</span>
+        </td>
+        <td class="px-3 py-2.5 text-right tabular-nums text-slate-700">{{ run.new_jobs }}</td>
+        <td class="px-3 py-2.5 text-right tabular-nums text-slate-700">{{ run.evaluated }}</td>
+        <td class="px-3 py-2.5 text-right tabular-nums text-emerald-600">{{ run.recommended }}</td>
+        <td class="px-3 py-2.5 text-right tabular-nums text-amber-600">{{ run.candidate }}</td>
+        <td class="px-3 py-2.5 text-right tabular-nums text-slate-400">{{ run.rejected }}</td>
+        <td class="px-3 py-2.5 text-right tabular-nums text-slate-700">{{ run.greeted_count }}</td>
+        <td class="px-3 py-2.5 text-right tabular-nums text-slate-500">
+          {% set sec = durations.get(run.id) %}{{ (sec ~ 's') if sec is not none else '—' }}
+        </td>
+        <td class="px-4 py-2.5 text-slate-600 max-w-[420px]">
+          <div class="leading-relaxed">{{ run.message or '—' }}</div>
+          {% if run.captcha_shot %}
+          <div class="mt-1 text-[11px] text-amber-600">验证码截图：{{ run.captcha_shot }}</div>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="rounded-lg border border-dashed border-slate-300 bg-white px-6 py-14 text-center">
+  <p class="text-sm text-slate-500">还没有运行记录</p>
+  <p class="mt-1 text-xs text-slate-400">用书签采集到岗位后，点上方「立即运行一轮」或在仪表盘点「立即运行」。</p>
+</div>
+{% endif %}
+
+<script>
+async function runNow(btn) {
+  const flash = document.getElementById('flash');
+  btn.disabled = true;
+  btn.classList.add('opacity-60');
+  try {
+    const d = await (await fetch('/api/run', { method: 'POST' })).json();
+    flash.textContent = d.message || '已触发';
+    flash.classList.remove('hidden');
+    if (d.ok) setTimeout(() => location.reload(), 4000);
+  } catch (e) {
+    flash.textContent = '触发失败：' + e.message;
+    flash.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('opacity-60');
+  }
+}
+</script>
+{% endblock %}
