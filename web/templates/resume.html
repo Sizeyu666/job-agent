@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% block title %}简历管理{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-xl font-semibold tracking-tight">简历管理</h1>
+  <p class="text-sm text-slate-500 mt-1">你的简历是打分与话术的唯一依据。更新简历后可以一键重新打分全部岗位。</p>
+</div>
+
+{% if msg %}
+<div class="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-700">{{ msg }}</div>
+{% endif %}
+{% if err %}
+<div class="mb-4 rounded-md border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm text-rose-700">{{ err }}</div>
+{% endif %}
+
+<div class="grid lg:grid-cols-3 gap-4">
+  <!-- 当前简历 -->
+  <div class="lg:col-span-2 space-y-4">
+    <div class="rounded-lg border border-slate-200 bg-white">
+      <div class="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
+        <h2 class="text-sm font-semibold">当前生效简历</h2>
+        {% if resume %}
+        <span class="inline-flex items-center gap-1.5 text-[11px] text-emerald-700">
+          <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span> 使用中
+        </span>
+        {% endif %}
+      </div>
+
+      {% if resume %}
+      <div class="px-5 py-4">
+        <div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+          <div>
+            <div class="text-xs text-slate-400">文件名</div>
+            <div class="mt-0.5 font-medium text-slate-800">{{ resume.filename }}</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400">上传时间</div>
+            <div class="mt-0.5 text-slate-700">{{ resume.created_at | dt('%Y-%m-%d %H:%M') }}</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400">类型</div>
+            <div class="mt-0.5 uppercase text-slate-700">{{ resume.file_type }}</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400">解析字数</div>
+            <div class="mt-0.5 text-slate-700 tabular-nums">{{ resume.raw_text | length }}</div>
+          </div>
+        </div>
+
+        {% if structured %}
+        <div class="mt-5 border-t border-slate-100 pt-4 space-y-4">
+          <div class="grid sm:grid-cols-2 gap-3 text-sm">
+            <div>
+              <span class="text-xs text-slate-400">姓名</span>
+              <div class="text-slate-800">{{ structured.get('name') or '—' }}</div>
+            </div>
+            <div>
+              <span class="text-xs text-slate-400">教育</span>
+              <div class="text-slate-800">{{ structured.get('education') or '—' }}</div>
+            </div>
+          </div>
+
+          {% if structured.get('skills') %}
+          <div>
+            <div class="text-xs text-slate-400 mb-1.5">技能</div>
+            <div class="flex flex-wrap gap-1.5">
+              {% for s in structured.get('skills') %}
+              <span class="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-600">{{ s }}</span>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+
+          {% if structured.get('projects') %}
+          <div>
+            <div class="text-xs text-slate-400 mb-2">项目经历</div>
+            <ul class="space-y-2">
+              {% for p in structured.get('projects') %}
+              <li class="rounded-md border border-slate-150 bg-slate-50/60 px-3 py-2">
+                <div class="text-sm font-medium text-slate-800">{{ p.get('name') or '未命名项目' }}</div>
+                {% if p.get('stack') %}<div class="text-xs text-slate-500 mt-0.5">技术栈：{{ p.get('stack') }}</div>{% endif %}
+                {% if p.get('duty') %}<div class="text-xs text-slate-600 mt-1">{{ p.get('duty') }}</div>{% endif %}
+                {% if p.get('result') %}<div class="text-xs text-emerald-700 mt-1">结果：{{ p.get('result') }}</div>{% endif %}
+              </li>
+              {% endfor %}
+            </ul>
+          </div>
+          {% endif %}
+
+          {% if structured.get('highlights') %}
+          <div>
+            <div class="text-xs text-slate-400 mb-1.5">核心亮点</div>
+            <ul class="list-disc list-inside space-y-1 text-xs text-slate-600">
+              {% for h in structured.get('highlights') %}<li>{{ h }}</li>{% endfor %}
+            </ul>
+          </div>
+          {% endif %}
+        </div>
+        {% else %}
+        <div class="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          该简历未生成结构化结果（LLM 结构化失败或使用了纯文本模式），打分将仅基于原文，建议重新上传或检查「设置」中的 LLM 配置。
+        </div>
+        {% endif %}
+
+        <details class="mt-4">
+          <summary class="cursor-pointer text-xs text-slate-500 hover:text-slate-700">查看解析出的原文</summary>
+          <pre class="thin-scroll mt-2 max-h-64 overflow-auto rounded border border-slate-200 bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-600 whitespace-pre-wrap">{{ resume.raw_text }}</pre>
+        </details>
+      </div>
+      {% else %}
+      <div class="px-5 py-10 text-center">
+        <p class="text-sm text-slate-500">还没有简历，右侧上传第一份简历开始使用。</p>
+        <p class="text-xs text-slate-400 mt-1">支持 PDF / DOCX / MD / TXT，建议包含项目名、技术栈与可量化结果。</p>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- 历史版本 -->
+    <div class="rounded-lg border border-slate-200 bg-white">
+      <div class="px-5 py-3.5 border-b border-slate-100"><h2 class="text-sm font-semibold">历史版本</h2></div>
+      {% if resumes %}
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-xs text-slate-400 border-b border-slate-100">
+              <th class="px-5 py-2 font-normal">#</th>
+              <th class="px-5 py-2 font-normal">文件</th>
+              <th class="px-5 py-2 font-normal">上传时间</th>
+              <th class="px-5 py-2 font-normal">状态</th>
+              <th class="px-5 py-2 font-normal text-right">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in resumes %}
+            <tr class="border-b border-slate-50 row-hover">
+              <td class="px-5 py-2.5 text-slate-400 tabular-nums">{{ r.id }}</td>
+              <td class="px-5 py-2.5 text-slate-700">{{ r.filename }}</td>
+              <td class="px-5 py-2.5 text-slate-500 tabular-nums">{{ r.created_at | dt('%Y-%m-%d %H:%M') }}</td>
+              <td class="px-5 py-2.5">
+                {% if r.is_active %}
+                <span class="rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] text-emerald-700">当前</span>
+                {% else %}
+                <span class="text-[11px] text-slate-400">历史</span>
+                {% endif %}
+              </td>
+              <td class="px-5 py-2.5 text-right">
+                {% if not r.is_active %}
+                <form method="post" action="/resume/{{ r.id }}/activate" class="inline">
+                  <button class="text-xs text-brand-600 hover:underline">设为当前</button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="px-5 py-6 text-sm text-slate-400">暂无历史版本</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- 上传 -->
+  <div class="space-y-4">
+    <div class="rounded-lg border border-slate-200 bg-white">
+      <div class="px-5 py-3.5 border-b border-slate-100"><h2 class="text-sm font-semibold">上传新简历</h2></div>
+      <form method="post" action="/resume/upload" enctype="multipart/form-data" class="px-5 py-4 space-y-3"
+            x-data="{ name: '' }">
+        <label class="block cursor-pointer rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center hover:border-brand-400 hover:bg-brand-50/40 transition-colors">
+          <input type="file" name="file" accept=".pdf,.docx,.md,.markdown,.txt" class="hidden"
+                 @change="name = $event.target.files[0]?.name || ''">
+          <svg class="mx-auto h-7 w-7 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+          </svg>
+          <div class="mt-2 text-sm text-slate-600" x-text="name || '点击选择文件'"></div>
+          <div class="mt-1 text-[11px] text-slate-400">PDF / DOCX / MD / TXT</div>
+        </label>
+        <button type="submit"
+                class="w-full rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700">
+          上传并解析
+        </button>
+        <p class="text-[11px] leading-relaxed text-slate-400">
+          上传后会自动提取文本并调用 LLM 结构化，旧简历保留为历史版本。新简历将用于后续所有打分的岗位。
+        </p>
+      </form>
+    </div>
+
+    <div class="rounded-lg border border-slate-200 bg-white px-5 py-4">
+      <h2 class="text-sm font-semibold mb-1.5">用当前简历重新打分</h2>
+      <p class="text-xs text-slate-500 leading-relaxed mb-3">
+        简历或阈值调整后，把已入库岗位全部重算一遍（后台执行，不阻塞页面）。
+      </p>
+      <button onclick="rescoreAll(this)"
+              class="w-full rounded-md border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-medium text-brand-700 hover:bg-brand-100">
+        重新打分全部岗位
+      </button>
+      <div id="rescore-out" class="mt-2 text-xs text-slate-500"></div>
+    </div>
+
+    <div class="rounded-lg border border-slate-200 bg-white px-5 py-4">
+      <h2 class="text-sm font-semibold mb-2">关于简历</h2>
+      <ul class="space-y-1.5 text-xs text-slate-500 leading-relaxed list-disc list-inside">
+        <li>项目写清「项目名 + 技术栈 + 你做了什么 + 可量化结果」，打分更准；</li>
+        <li>扫描版 PDF 无法提取文字，请用可复制文本的版本；</li>
+        <li>简历仅保存在本机 resumes/ 目录，不会上传到第三方存储。</li>
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function rescoreAll(btn) {
+  const out = document.getElementById('rescore-out');
+  btn.disabled = true;
+  btn.classList.add('opacity-60');
+  out.textContent = '已提交后台重算，稍后刷新岗位列表查看新分数…';
+  try {
+    const d = await (await fetch('/api/rescore', { method: 'POST' })).json();
+    out.textContent = d.message || (d.ok ? '已开始' : '触发失败');
+  } catch (e) {
+    out.textContent = '触发失败：' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('opacity-60');
+  }
+}
+</script>
+{% endblock %}
