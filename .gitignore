@@ -1,0 +1,19 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# 密钥与个人数据
+config/profile.yaml
+config/secrets.yaml
+resumes/
+data/
+logs/
+output/
+
+# IDE
+.idea/
+.vscode/
+*.swp
