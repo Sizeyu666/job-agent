@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}一键采集{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <div class="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
+    <div class="font-medium mb-1">为什么要用书签采集？</div>
+    BOSS 会识别并拦截程序打开浏览器（Playwright/CDP 一接入就会被跳转到安全校验页），
+    按项目红线也不允许绕过验证。所以改由<b>你本人已登录的浏览器</b>读取页面数据、推送给本机程序：
+    没有任何自动化指纹，也不碰验证码。
+  </div>
+
+  <div class="rounded-xl border border-slate-200 bg-white p-6">
+    <h2 class="text-base font-semibold mb-4">三步开始</h2>
+    <ol class="space-y-4 text-sm text-slate-700">
+      <li class="flex gap-3">
+        <span class="flex-none h-6 w-6 rounded-full bg-brand-600 text-white text-xs flex items-center justify-center">1</span>
+        <div>
+          把下面这个按钮<b>拖到浏览器书签栏</b>（或右键 → 添加到收藏夹）：
+          <div class="mt-3">
+            <a href="{{ bookmarklet }}"
+               onclick="alert('请把这个按钮拖到书签栏，而不是直接点击。'); return false;"
+               class="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-white text-sm font-medium shadow-sm hover:bg-brand-700">
+              <span class="text-base leading-none">＋</span> 采集当前页岗位
+            </a>
+          </div>
+        </div>
+      </li>
+      <li class="flex gap-3">
+        <span class="flex-none h-6 w-6 rounded-full bg-brand-600 text-white text-xs flex items-center justify-center">2</span>
+        <div>
+          在浏览器里打开 <b>BOSS 职位搜索页</b> 或 <b>实习僧搜索结果页</b>（已登录状态），等岗位列表加载出来，然后<b>点一次书签</b>。
+          脚本会自动识别站点：BOSS 读卡片并为前 8 个岗位补抓职位描述；实习僧列表页的标题是图标字体（复制出来是乱码），
+          所以会为<b>整页每个岗位</b>打开一次详情页，取标题、薪资、学历、每周天数与 JD 正文（约 15 秒）。
+          最后弹窗告诉你新增/更新了多少。
+        </div>
+      </li>
+      <li class="flex gap-3">
+        <span class="flex-none h-6 w-6 rounded-full bg-brand-600 text-white text-xs flex items-center justify-center">3</span>
+        <div>
+          回到 JobAgent 点「打分」，或直接调接口 <code class="px-1.5 py-0.5 bg-slate-100 rounded text-xs">POST /api/score</code>，
+          用当前生效简历给新岗位算分。
+          <div class="mt-3">
+            <button onclick="score()" class="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50">立即打分</button>
+            <span id="score-out" class="ml-3 text-xs text-slate-500"></span>
+          </div>
+        </div>
+      </li>
+    </ol>
+  </div>
+
+  <div class="rounded-xl border border-slate-200 bg-white p-6">
+    <div class="flex items-baseline justify-between mb-1">
+      <h2 class="text-base font-semibold">备用通道：手动粘贴一个岗位</h2>
+      <span class="text-xs text-slate-400">BOSS 页面打不开 / 被限制访问时用</span>
+    </div>
+    <p class="text-sm text-slate-600 mb-4">
+      在 BOSS 或实习僧的岗位详情页按 <code class="px-1.5 py-0.5 bg-slate-100 rounded text-xs">Ctrl+A</code> 全选、复制，粘贴到下面，
+      由模型整理成结构化岗位后入库。一次一个岗位。
+    </p>
+    <form id="manual-form" class="space-y-3" onsubmit="return ingestManual(event)">
+      <input id="manual-url" type="url" placeholder="岗位链接（可选，粘贴后同一岗位不会重复入库）"
+             class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-200">
+      <textarea id="manual-text" rows="8" placeholder="把岗位详情页的整段文字粘贴到这里（岗位名称、公司、薪资、地点、经验学历、职位描述）"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand-200"></textarea>
+      <div class="flex items-center gap-3">
+        <button type="submit" class="rounded-lg bg-brand-600 px-4 py-2 text-sm text-white font-medium hover:bg-brand-700">解析并入库</button>
+        <span id="manual-out" class="text-xs text-slate-500"></span>
+      </div>
+    </form>
+    <div id="manual-card" class="hidden mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900"></div>
+  </div>
+
+  <div class="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
+    <div class="font-medium text-slate-800 mb-2">说明</div>
+    <ul class="list-disc pl-5 space-y-1.5">
+      <li>本机接口：<code class="px-1.5 py-0.5 bg-slate-100 rounded text-xs">http://127.0.0.1:{{ port }}/api/ingest</code>（书签）和 <code class="px-1.5 py-0.5 bg-slate-100 rounded text-xs">/api/ingest/manual</code>（手动粘贴），需保持 <code class="px-1.5 py-0.5 bg-slate-100 rounded text-xs">python main.py serve</code> 在运行</li>
+      <li>翻页后可以再点一次书签，重复岗位会自动去重，只补空缺字段。</li>
+      <li>每次只抓前 8 个岗位的详情，间隔 0.7 秒，避免频繁请求。</li>
+      <li>程序不会投递、不会打招呼、不会发送任何消息；投递仍由你本人手动操作。</li>
+    </ul>
+  </div>
+
+</div>
+
+<script>
+async function ingestManual(ev) {
+  ev.preventDefault();
+  const out = document.getElementById('manual-out');
+  const card = document.getElementById('manual-card');
+  const text = document.getElementById('manual-text').value.trim();
+  const url = document.getElementById('manual-url').value.trim();
+  card.classList.add('hidden');
+  if (text.length < 30) {
+    out.textContent = '请先粘贴岗位详情页的整段文字';
+    return false;
+  }
+  out.textContent = '解析中，约 10-20 秒…';
+  try {
+    const r = await fetch('/api/ingest/manual', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, url }),
+    });
+    const d = await r.json();
+    if (!d.ok) {
+      out.textContent = d.message || '入库失败';
+      return false;
+    }
+    out.textContent = '';
+    const j = d.job;
+    card.innerHTML = `
+      <div class="font-medium mb-1">${d.created ? '已新增岗位' : '已更新已有岗位'}</div>
+      <div>${j.title} · ${j.company || '公司未知'} · ${j.salary || '薪资未知'} · ${j.city || '城市未知'}</div>
+      <div class="mt-1 text-xs text-emerald-800">${j.experience || '经验未知'} / ${j.education || '学历未知'} / JD ${j.jd_chars} 字</div>
+      <div class="mt-2 text-xs text-emerald-800">接下来点上面的「立即打分」，或用流水线打分。</div>`;
+    card.classList.remove('hidden');
+    document.getElementById('manual-text').value = '';
+    document.getElementById('manual-url').value = '';
+  } catch (e) {
+    out.textContent = '请求失败：' + e.message;
+  }
+  return false;
+}
+
+async function score() {
+  const out = document.getElementById('score-out');
+  out.textContent = '打分中…';
+  try {
+    const r = await fetch('/api/score?limit=100', { method: 'POST' });
+    const d = await r.json();
+    out.textContent = d.ok
+      ? `共 ${d.total} 个：推荐 ${d.recommended}，可考虑 ${d.candidate}，淘汰 ${d.rejected}，失败 ${d.failed}`
+      : `失败：${d.message}`;
+  } catch (e) {
+    out.textContent = '请求失败：' + e.message;
+  }
+}
+</script>
+{% endblock %}
