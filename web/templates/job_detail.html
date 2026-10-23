@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+{% block title %}岗位详情{% endblock %}
+
+{% block content %}
+{% if not job %}
+<div class="rounded-lg border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
+  岗位不存在或已被删除。<a href="/jobs" class="underline">返回岗位列表</a>
+</div>
+{% else %}
+
+<div class="flex flex-wrap items-start justify-between gap-4 mb-5">
+  <div class="min-w-0">
+    <a href="/jobs" class="text-xs text-slate-400 hover:text-brand-600">← 返回岗位列表</a>
+    <h1 class="mt-1 text-xl font-semibold tracking-tight">{{ job.title or '未命名岗位' }}</h1>
+    <p class="text-sm text-slate-500 mt-1">
+      <span class="text-slate-700">{{ job.company or '公司未知' }}</span>
+      {% if job.salary_raw %}<span class="mx-1.5 text-slate-300">·</span>{{ job.salary_raw }}{% endif %}
+      {% if job.city %}<span class="mx-1.5 text-slate-300">·</span>{{ job.city }}{% endif %}
+      {% if job.experience %}<span class="mx-1.5 text-slate-300">·</span>{{ job.experience }}{% endif %}
+      {% if job.education %}<span class="mx-1.5 text-slate-300">·</span>{{ job.education }}{% endif %}
+    </p>
+    {% if job.tags %}
+    <div class="mt-2 flex flex-wrap gap-1.5">
+      {% for t in job.tags %}
+      <span class="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-600">{{ t }}</span>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="flex items-center gap-2 text-xs">
+    {% if job.url %}
+    <a href="{{ job.url }}" target="_blank" rel="noopener"
+       class="rounded-md border border-brand-200 bg-brand-50 px-3 py-2 text-brand-700 hover:bg-brand-100">去 BOSS 打招呼 ↗</a>
+    {% endif %}
+    <select onchange="setStatus({{ job.id }}, this.value)"
+            class="rounded-md border border-slate-300 bg-white px-2.5 py-2 text-xs">
+      {% for key, label in status_labels.items() %}
+      <option value="{{ key }}" {% if job.status == key %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+</div>
+
+{% if msg %}
+<div class="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-700">{{ msg }}</div>
+{% endif %}
+<div id="flash" class="hidden mb-4 rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-600"></div>
+
+<div class="grid lg:grid-cols-3 gap-4">
+  <!-- 左：JD 与评估 -->
+  <div class="lg:col-span-2 space-y-4">
+    {% if evaluation %}
+    <div class="rounded-lg border border-slate-200 bg-white">
+      <div class="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
+        <h2 class="text-sm font-semibold">匹配结论</h2>
+        <span class="text-[11px] text-slate-400">JD 摘要：{{ evaluation.jd_summary or '—' }}</span>
+      </div>
+      <div class="px-5 py-4 space-y-4 text-sm">
+        {% if evaluation.hard_gaps %}
+        <div class="rounded-md border border-rose-200 bg-rose-50 px-3 py-2">
+          <div class="text-xs font-medium text-rose-700 mb-1">硬性条件缺口</div>
+          <ul class="list-disc list-inside space-y-0.5 text-xs text-rose-700">
+            {% for gap in evaluation.hard_gaps %}<li>{{ gap }}</li>{% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+
+        {% if evaluation.matched_points %}
+        <div>
+          <div class="text-xs text-slate-400 mb-1.5">简历对口点</div>
+          <ul class="space-y-1">
+            {% for p in evaluation.matched_points %}
+            <li class="text-xs text-slate-700 leading-relaxed">· {{ p }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+
+        {% if evaluation.pitch_angle %}
+        <div>
+          <div class="text-xs text-slate-400 mb-1">打招呼切入点</div>
+          <div class="text-xs text-slate-700">{{ evaluation.pitch_angle }}</div>
+        </div>
+        {% endif %}
+
+        {% if evaluation.risk_flags %}
+        <div class="flex flex-wrap gap-1.5">
+          {% for f in evaluation.risk_flags %}
+          <span class="rounded border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] text-rose-700">风险：{{ f }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="rounded-lg border border-slate-200 bg-white">
+      <div class="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
+        <h2 class="text-sm font-semibold">职位描述</h2>
+        <span class="text-[11px] text-slate-400">{{ job.jd_text | length }} 字</span>
+      </div>
+      <div class="px-5 py-4">
+        {% if job.jd_text %}
+        <pre class="thin-scroll max-h-[520px] overflow-auto whitespace-pre-wrap text-xs leading-relaxed text-slate-700 font-sans">{{ job.jd_text }}</pre>
+        {% else %}
+        <p class="text-sm text-slate-400">该岗位还没有抓到 JD 正文（书签采集只补前 8 条的详情），可手动粘贴补充。</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- 右：分数 + 话术 -->
+  <div class="space-y-4">
+    <div class="rounded-lg border border-slate-200 bg-white">
+      <div class="px-5 py-3.5 border-b border-slate-100"><h2 class="text-sm font-semibold">分数拆解</h2></div>
+      <div class="px-5 py-4">
+        {% if evaluation %}
+        {% set grade_meta = {'recommended': ('推荐', 'text-emerald-600'),
+                             'candidate': ('可考虑', 'text-amber-600'),
+                             'rejected': ('淘汰', 'text-slate-500')} %}
+        {% set gm = grade_meta.get(evaluation.grade, (evaluation.grade, 'text-slate-500')) %}
+        <div class="flex items-end gap-2">
+          <div class="text-4xl font-semibold tabular-nums {{ gm[1] }}">{{ '%.1f' | format(evaluation.final_score) }}</div>
+          <div class="text-xs text-slate-400 mb-1.5">最终分 · {{ gm[0] }}（阈值 {{ profile.score_threshold }}）</div>
+        </div>
+
+        {% set rows_meta = [('LLM 语义分', evaluation.llm_score, 'bg-brand-500'),
+                            ('向量相似度', evaluation.embedding_score, 'bg-emerald-500'),
+                            ('技能覆盖率', evaluation.skill_coverage, 'bg-amber-400')] %}
+        <div class="mt-4 space-y-2.5">
+          {% for label, value, color in rows_meta %}
+          <div>
+            <div class="flex items-center justify-between text-[11px] mb-1">
+              <span class="text-slate-500">{{ label }}</span>
+              <span class="text-slate-700 tabular-nums">{{ '%.1f' | format(value) }}</span>
+            </div>
+            <div class="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
+              <div class="h-full rounded-full {{ color }}" style="width: {{ [value, 100] | min }}%"></div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="mt-4 text-[11px] text-slate-400 leading-relaxed">
+          权重：向量 {{ profile.weights.embedding }} / LLM {{ profile.weights.llm }}；向量模型不可用时权重全部让给 LLM。
+        </div>
+        {% else %}
+        <p class="text-sm text-slate-400">该岗位还没有打分。</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="rounded-lg border border-slate-200 bg-white" x-data="{ copied: false }">
+      <div class="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
+        <h2 class="text-sm font-semibold">打招呼话术</h2>
+        <button onclick="regenGreeting({{ job.id }})" class="text-[11px] text-brand-600 hover:underline">重新生成</button>
+      </div>
+      <div class="px-5 py-4 space-y-2.5">
+        {% if greetings %}
+        {% for g in greetings %}
+        <div class="rounded-md border border-slate-200 bg-slate-50/60 px-3 py-2">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-[11px] text-slate-400">{{ style_labels.get(g.style, g.style) }} · {{ g.content | length }} 字</span>
+            <button @click="navigator.clipboard.writeText($refs['d{{ loop.index }}'].innerText); copied = true"
+                    class="text-[11px] text-brand-600 hover:underline">复制</button>
+          </div>
+          <div x-ref="d{{ loop.index }}" class="text-xs leading-relaxed text-slate-700 whitespace-pre-wrap">{{ g.content }}</div>
+        </div>
+        {% endfor %}
+        <div class="text-[11px] text-emerald-700" x-show="copied" style="display:none">已复制，去 BOSS 粘贴发送（发送动作由你本人完成）</div>
+        {% else %}
+        <p class="text-sm text-slate-400">还没有话术。只有「推荐 / 可考虑」的岗位会生成话术。</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="rounded-lg border border-slate-200 bg-white px-5 py-4 text-[11px] text-slate-400 space-y-1">
+      <div>来源：{{ job.platform }} · {{ job.job_id }}</div>
+      <div>首次入库：{{ job.first_seen_at | dt('%Y-%m-%d %H:%M') }}</div>
+      <div>最近入库：{{ job.last_seen_at | dt('%Y-%m-%d %H:%M') }}</div>
+    </div>
+  </div>
+</div>
+
+<script>
+async function setStatus(id, status) {
+  const flash = document.getElementById('flash');
+  try {
+    const r = await fetch(`/jobs/${id}/status`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    });
+    const d = await r.json();
+    flash.textContent = d.ok ? `状态已更新为「${d.label}」` : (d.message || '更新失败');
+    flash.classList.remove('hidden');
+  } catch (e) {
+    flash.textContent = '更新失败：' + e.message;
+    flash.classList.remove('hidden');
+  }
+}
+
+async function regenGreeting(id) {
+  const flash = document.getElementById('flash');
+  flash.textContent = '正在重新生成话术，约 20-40 秒…';
+  flash.classList.remove('hidden');
+  try {
+    const r = await fetch(`/jobs/${id}/greeting`, { method: 'POST' });
+    const d = await r.json();
+    if (d.ok) location.reload();
+    else flash.textContent = d.message || '生成失败';
+  } catch (e) {
+    flash.textContent = '生成失败：' + e.message;
+  }
+}
+</script>
+{% endif %}
+{% endblock %}
