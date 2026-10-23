@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}设置{% endblock %}
+
+{% block content %}
+<div class="mb-5">
+  <h1 class="text-xl font-semibold tracking-tight">设置</h1>
+  <p class="text-sm text-slate-500 mt-1">保存后立即热加载，下一轮任务即生效。密钥只写在本机 config/secrets.yaml。</p>
+</div>
+
+{% if msg %}
+<div class="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-700">{{ msg }}</div>
+{% endif %}
+{% if err %}
+<div class="mb-4 rounded-md border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm text-rose-700">{{ err }}</div>
+{% endif %}
+
+<form method="post" action="/settings" class="grid lg:grid-cols-2 gap-4">
+  <!-- 采集与匹配 -->
+  <div class="rounded-lg border border-slate-200 bg-white">
+    <div class="px-5 py-3.5 border-b border-slate-100"><h2 class="text-sm font-semibold">采集与匹配</h2></div>
+    <div class="px-5 py-4 space-y-4 text-sm">
+      <label class="block">
+        <span class="text-xs text-slate-500">目标岗位关键词（一行一个）</span>
+        <textarea name="keywords" rows="3"
+                  class="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm font-mono">{{ profile.target_keywords | join('\n') }}</textarea>
+      </label>
+      <label class="block">
+        <span class="text-xs text-slate-500">目标城市（一行一个，格式：城市名 城市码）</span>
+        <textarea name="cities" rows="3"
+                  class="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm font-mono">{% for c in profile.cities %}{{ c.name }} {{ c.code }}
+{% endfor %}</textarea>
+      </label>
+      <div class="grid sm:grid-cols-2 gap-3">
+        <label class="block">
+          <span class="text-xs text-slate-500">采集模式</span>
+          <select name="collect_mode" class="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm bg-white">
+            <option value="manual" {% if profile.collect_mode == 'manual' %}selected{% endif %}>手动（书签 / 粘贴）</option>
+            <option value="browser" {% if profile.collect_mode == 'browser' %}selected{% endif %}>浏览器自动采集（BOSS 正常时）</option>
+          </select>
+        </label>
+        <div>
+          <span class="text-xs text-slate-500">推送渠道</span>
+          <div class="mt-2 flex items-center gap-4 text-xs text-slate-600">
+            <label class="flex items-center gap-1.5">
+              <input type="checkbox" name="notify_feishu" {% if profile.notify.enabled.get('feishu') %}checked{% endif %}
+                     class="rounded border-slate-300">飞书
+            </label>
+            <label class="flex items-center gap-1.5">
+              <input type="checkbox" name="notify_serverchan" {% if profile.notify.enabled.get('serverchan') %}checked{% endif %}
+                     class="rounded border-slate-300">Server 酱
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="grid grid-cols-3 gap-3">
+        <label class="block">
+          <span class="text-xs text-slate-500">推荐阈值</span>
+          <input name="score_threshold" type="number" min="1" max="100" value="{{ profile.score_threshold }}"
+                 class="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm">
+        </label>
+        <label class="block">
+          <span class="text-xs text-slate-500">每词页数</span>
+          <input name="per_keyword_max_pages" type="number" min="1" max="10" value="{{ profile.per_keyword_max_pages }}"
+                 class="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm">
+        </label>
+        <label class="block">
+          <span class="text-xs text-slate-500">详情上限</span>
+          <input name="detail_page_limit" type="number" min="0" max="200" value="{{ profile.detail_page_limit }}"
+                 class="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm">
+        </label>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <label class="block">
+          <span class="text-xs text-slate-500">最短延迟（秒）</span>
+          <input name="min_delay_seconds" type="number" min="1" max="60" value="{{ profile.min_delay_seconds }}"
+                 class="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm">
+        </label>
+        <label class="block">
+          <span class="text-xs text-slate-500">最长延迟（秒）</span>
+          <input name="max_delay_seconds" type="number" min="1" max="120" value="{{ profile.max_delay_seconds }}"
+                 class="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm">
+        </label>
+      </div>
+      <label class="flex items-center gap-2 text-xs text-slate-600">
+        <input type="checkbox" name="hard_filter_enabled" {% if profile.hard_filter_enabled %}checked{% endif %}
+               class="rounded border-slate-300">
+        启用硬过滤（城市/学历/经验/排除词未通过直接淘汰，不调 LLM）
+      </label>
+      <label class="block">
+        <span class="text-xs text-slate-500">定时计划（一行一个 cron：分 时 日 月 周）</span>
+        <textarea name="cron" rows="2"
+                  class="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm font-mono">{{ profile.schedule.cron | join('\n') }}</textarea>
+      </label>
+    </div>
+  </div>
+
+  <!-- 模型与密钥 -->
+  <div class="space-y-4">
+    <div class="rounded-lg border border-slate-200 bg-white">
+      <div class="px-5 py-3.5 border-b border-slate-100"><h2 class="text-sm font-semibold">模型与密钥</h2></div>
+      <div class="px-5 py-4 space-y-4 text-sm">
+        <label class="block">
+          <span class="text-xs text-slate-500">LLM base_url</span>
+          <input name="llm_base_url" value="{{ profile.llm.base_url }}"
+                 class="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm font-mono">
+        </label>
+        <label class="block">
+          <span class="text-xs text-slate-500">模型名</span>
+          <input name="llm_model" value="{{ profile.llm.model }}"
+                 class="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm font-mono">
+        </label>
+        <label class="block">
+          <span class="text-xs text-slate-500">LLM API Key（留空则保持不变）</span>
+          <input name="api_key" type="password" value="{{ secrets.llm_api_key }}" autocomplete="off"
+                 class="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm font-mono">
+        </label>
+        <label class="block">
+          <span class="text-xs text-slate-500">飞书 Webhook（可选）</span>
+          <input name="feishu_webhook" value="{{ secrets.feishu_webhook }}"
+                 class="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm font-mono">
+        </label>
+        <label class="block">
+          <span class="text-xs text-slate-500">Server 酱 SendKey（可选）</span>
+          <input name="serverchan_sendkey" value="{{ secrets.serverchan_sendkey }}"
+                 class="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm font-mono">
+        </label>
+        <div class="flex flex-wrap items-center gap-2 pt-1">
+          <button type="button" onclick="testLLM()"
+                  class="rounded-md border border-slate-300 px-3 py-1.5 text-xs hover:bg-slate-50">测试 LLM 连通</button>
+          <button type="button" onclick="testFeishu()"
+                  class="rounded-md border border-slate-300 px-3 py-1.5 text-xs hover:bg-slate-50">测试飞书推送</button>
+          <span id="test-out" class="text-xs text-slate-500"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="rounded-lg border border-slate-200 bg-white px-5 py-4 text-xs text-slate-500 leading-relaxed space-y-1.5">
+      <div class="text-sm font-semibold text-slate-800 mb-1">采集通道说明</div>
+      <p>BOSS 会拦截程序驱动的浏览器，<code class="px-1 bg-slate-100 rounded">python main.py login</code> 一类的自动登录已不再使用。</p>
+      <p>当前用两条通道：<a href="/bookmarklet" class="text-brand-600 hover:underline">书签一键采集</a>（已登录浏览器点一下）和手动粘贴。</p>
+      <p>手动模式下，定时任务只对已入库岗位做打分与话术，不会再驱动浏览器去访问 BOSS。</p>
+      <p>本平台只读取公开岗位信息，不投递、不自动打招呼、不绕过任何验证码。</p>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <button type="submit" class="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700">保存设置</button>
+      <span class="text-[11px] text-slate-400">保存时会先校验，非法配置不会写入磁盘</span>
+    </div>
+  </div>
+</form>
+
+<script>
+async function testLLM() {
+  const out = document.getElementById('test-out');
+  out.textContent = '测试中…';
+  try {
+    const d = await (await fetch('/api/test-llm', { method: 'POST' })).json();
+    out.textContent = d.message;
+    out.className = 'text-xs ' + (d.ok ? 'text-emerald-600' : 'text-rose-600');
+  } catch (e) { out.textContent = '请求失败：' + e.message; }
+}
+async function testFeishu() {
+  const out = document.getElementById('test-out');
+  try {
+    const d = await (await fetch('/api/test-feishu', { method: 'POST' })).json();
+    out.textContent = d.message;
+    out.className = 'text-xs ' + (d.ok ? 'text-emerald-600' : 'text-amber-600');
+  } catch (e) { out.textContent = '请求失败：' + e.message; }
+}
+</script>
+{% endblock %}
